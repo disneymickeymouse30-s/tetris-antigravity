@@ -2,9 +2,18 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
 <title>TETRIS - ネオンテトリス</title>
 <meta name="description" content="スマートフォンで遊べるネオン風テトリスゲーム">
+<!-- PWA / アプリ風表示用メタタグ -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#060612">
+<meta name="msapplication-navbutton-color" content="#060612">
+<meta name="apple-mobile-web-app-title" content="TETRIS">
+<!-- フルスクリーンAPI用 -->
+<link rel="manifest" href="manifest.json">
 <style>
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
   html,body{
@@ -15,6 +24,8 @@
     font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;
     background:#0a0a1a;
     color:#e0e0ff;
+    /* iOS safe area対応 */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   body{
     display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
@@ -41,16 +52,16 @@
     position:relative;z-index:1;
     display:flex;flex-direction:column;align-items:center;
     width:100%;max-width:420px;height:100vh;height:100dvh;
-    padding:8px 8px 0;
+    padding:4px 8px 0;
   }
 
   /* --- Header info --- */
   #header{
     display:flex;align-items:center;justify-content:space-between;
-    width:100%;padding:4px 0 6px;flex-shrink:0;
+    width:100%;padding:2px 0 4px;flex-shrink:0;
   }
   #header h1{
-    font-size:1.4rem;font-weight:800;letter-spacing:.15em;
+    font-size:1.2rem;font-weight:800;letter-spacing:.15em;
     background:linear-gradient(135deg,#00e5ff,#7c4dff,#ff4081);
     -webkit-background-clip:text;-webkit-text-fill-color:transparent;
     background-clip:text;
@@ -62,15 +73,38 @@
     display:flex;flex-direction:column;align-items:center;
     background:rgba(255,255,255,.04);
     border:1px solid rgba(255,255,255,.08);
-    border-radius:8px;padding:4px 12px;min-width:70px;
+    border-radius:8px;padding:2px 10px;min-width:58px;
     backdrop-filter:blur(6px);
   }
-  .info-box .label{font-size:.55rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(200,210,255,.5)}
-  .info-box .value{font-size:1rem;font-weight:700;color:#fff;text-shadow:0 0 8px rgba(0,229,255,.5)}
+  .info-box .label{font-size:.5rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(200,210,255,.5)}
+  .info-box .value{font-size:.85rem;font-weight:700;color:#fff;text-shadow:0 0 8px rgba(0,229,255,.5)}
+
+  /* --- Reset button --- */
+  #btn-reset{
+    display:flex;align-items:center;justify-content:center;
+    gap:4px;
+    background:rgba(255,60,60,.12);
+    border:1px solid rgba(255,80,80,.3);
+    border-radius:8px;padding:4px 10px;
+    color:rgba(255,120,120,.9);
+    font-size:.65rem;font-weight:600;letter-spacing:.08em;
+    cursor:pointer;
+    transition:all .15s;
+    -webkit-tap-highlight-color:transparent;
+    backdrop-filter:blur(6px);
+  }
+  #btn-reset:active{
+    background:rgba(255,60,60,.3);
+    transform:scale(.92);
+  }
+  #btn-reset svg{
+    width:14px;height:14px;
+    fill:currentColor;
+  }
 
   /* --- Main area: canvas + next --- */
   #main-area{
-    display:flex;align-items:flex-start;gap:8px;
+    display:flex;align-items:flex-start;gap:6px;
     width:100%;flex:1 1 auto;min-height:0;
     justify-content:center;
     padding:2px 0;
@@ -86,66 +120,170 @@
   }
 
   #side-panel{
-    display:flex;flex-direction:column;gap:8px;flex-shrink:0;
+    display:flex;flex-direction:column;gap:6px;flex-shrink:0;
   }
   .side-box{
     background:rgba(255,255,255,.03);
     border:1px solid rgba(255,255,255,.07);
-    border-radius:8px;padding:6px;
+    border-radius:8px;padding:5px;
     backdrop-filter:blur(6px);
     display:flex;flex-direction:column;align-items:center;
   }
-  .side-box .label{font-size:.5rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(200,210,255,.45);margin-bottom:4px}
+  .side-box .label{font-size:.45rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(200,210,255,.45);margin-bottom:3px}
   #next-canvas,#hold-canvas{
     display:block;background:transparent;image-rendering:pixelated;
   }
 
-  /* --- Controls --- */
-  #controls{
-    display:grid;
-    grid-template-columns:1fr 1fr 1fr 1fr;
-    gap:10px;
+  /* ===== ファミコン風コントローラー ===== */
+  #controller{
     width:100%;
-    padding:10px 4px 16px;
+    flex-shrink:0;
+    padding:6px 4px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+
+  /* --- 十字キー (D-Pad) --- */
+  .dpad-container{
+    position:relative;
+    width:130px;height:130px;
     flex-shrink:0;
   }
-  .ctrl-btn{
+
+  .dpad-btn{
+    position:absolute;
     display:flex;align-items:center;justify-content:center;
-    height:56px;
-    border-radius:14px;
-    border:1.5px solid rgba(255,255,255,.12);
-    background:rgba(255,255,255,.06);
-    backdrop-filter:blur(8px);
-    color:#fff;font-size:1.6rem;
+    background:rgba(40,40,60,.85);
+    border:2px solid rgba(100,110,160,.35);
+    color:rgba(200,210,255,.7);
     cursor:pointer;
-    transition:background .1s,transform .08s,box-shadow .15s;
     -webkit-tap-highlight-color:transparent;
-    position:relative;overflow:hidden;
+    transition:background .08s,transform .06s;
+    z-index:2;
   }
-  .ctrl-btn::after{
-    content:'';position:absolute;inset:0;border-radius:14px;
-    background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.08),transparent 70%);
+  .dpad-btn:active{
+    background:rgba(80,90,140,.7);
+    transform:scale(.94);
+  }
+  .dpad-btn svg{
+    width:22px;height:22px;
+    fill:currentColor;
     pointer-events:none;
   }
-  .ctrl-btn:active{
-    background:rgba(255,255,255,.15);
-    transform:scale(.93);
-    box-shadow:0 0 18px rgba(100,140,255,.25);
-  }
-  .ctrl-btn .btn-label{font-size:.5rem;position:absolute;bottom:4px;opacity:.45;letter-spacing:.05em}
 
-  /* Larger drop + rotate */
-  #btn-rotate{border-color:rgba(124,77,255,.3)}
-  #btn-rotate:active{box-shadow:0 0 18px rgba(124,77,255,.4)}
-  #btn-drop{border-color:rgba(0,229,255,.25)}
-  #btn-drop:active{box-shadow:0 0 18px rgba(0,229,255,.4)}
-
-  /* Extra row for soft-drop + hold */
-  #controls-extra{
-    display:grid;grid-template-columns:1fr 1fr;
-    gap:10px;width:100%;padding:0 4px 14px;flex-shrink:0;
+  /* 十字の中心 */
+  .dpad-center{
+    position:absolute;
+    width:44px;height:44px;
+    top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    background:rgba(35,35,55,.9);
+    border:2px solid rgba(100,110,160,.3);
+    border-radius:6px;
+    z-index:1;
   }
-  #controls-extra .ctrl-btn{height:46px;font-size:1.2rem}
+
+  /* 上 */
+  .dpad-up{
+    width:44px;height:44px;
+    top:0;left:50%;
+    transform:translateX(-50%);
+    border-radius:10px 10px 0 0;
+  }
+  /* 下 */
+  .dpad-down{
+    width:44px;height:44px;
+    bottom:0;left:50%;
+    transform:translateX(-50%);
+    border-radius:0 0 10px 10px;
+  }
+  /* 左 */
+  .dpad-left{
+    width:44px;height:44px;
+    top:50%;left:0;
+    transform:translateY(-50%);
+    border-radius:10px 0 0 10px;
+  }
+  /* 右 */
+  .dpad-right{
+    width:44px;height:44px;
+    top:50%;right:0;
+    transform:translateY(-50%);
+    border-radius:0 10px 10px 0;
+  }
+
+  /* --- 中央ボタン群 (Select / Start / Hold) --- */
+  .center-btns{
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    flex-shrink:0;
+  }
+  .nes-small-btn{
+    display:flex;align-items:center;justify-content:center;
+    width:56px;height:22px;
+    border-radius:12px;
+    background:rgba(60,60,80,.6);
+    border:1.5px solid rgba(120,120,160,.3);
+    color:rgba(200,210,255,.55);
+    font-size:.5rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    transition:background .1s,transform .06s;
+  }
+  .nes-small-btn:active{
+    background:rgba(100,100,140,.5);
+    transform:scale(.92);
+  }
+
+  /* --- A/B ボタン --- */
+  .ab-container{
+    position:relative;
+    width:130px;height:110px;
+    flex-shrink:0;
+  }
+
+  .ab-btn{
+    position:absolute;
+    width:58px;height:58px;
+    border-radius:50%;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    transition:transform .06s,box-shadow .12s;
+    border:2.5px solid;
+    font-weight:800;font-size:1.1rem;
+    letter-spacing:.05em;
+  }
+  .ab-btn:active{
+    transform:scale(.9);
+  }
+  .ab-btn .ab-sub{
+    font-size:.4rem;font-weight:600;opacity:.55;letter-spacing:.08em;margin-top:1px;
+  }
+
+  /* B ボタン (左下 - ハードドロップ) */
+  .btn-b{
+    bottom:2px;left:0;
+    background:radial-gradient(circle at 40% 35%,rgba(0,229,255,.35),rgba(0,150,200,.15) 70%);
+    border-color:rgba(0,229,255,.5);
+    color:rgba(0,229,255,.95);
+    box-shadow:0 0 16px rgba(0,229,255,.2),inset 0 -3px 6px rgba(0,0,0,.3);
+  }
+  .btn-b:active{
+    box-shadow:0 0 24px rgba(0,229,255,.5),inset 0 -1px 3px rgba(0,0,0,.2);
+  }
+
+  /* A ボタン (右上 - 回転) */
+  .btn-a{
+    top:2px;right:0;
+    background:radial-gradient(circle at 40% 35%,rgba(124,77,255,.4),rgba(100,50,200,.15) 70%);
+    border-color:rgba(124,77,255,.55);
+    color:rgba(180,140,255,.95);
+    box-shadow:0 0 16px rgba(124,77,255,.2),inset 0 -3px 6px rgba(0,0,0,.3);
+  }
+  .btn-a:active{
+    box-shadow:0 0 24px rgba(124,77,255,.5),inset 0 -1px 3px rgba(0,0,0,.2);
+  }
 
   /* --- Overlay --- */
   #overlay{
@@ -200,7 +338,47 @@
   #start-overlay button:active{transform:scale(.94)}
 
   /* Level/Lines in header */
-  #level-display{display:flex;gap:6px}
+  #level-display{display:flex;gap:4px}
+
+  /* リセット確認ダイアログ */
+  #reset-confirm{
+    position:fixed;inset:0;z-index:120;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(2,2,10,.85);
+    backdrop-filter:blur(10px);
+    transition:opacity .2s;
+  }
+  #reset-confirm.hidden{opacity:0;pointer-events:none}
+  #reset-confirm .dialog{
+    background:rgba(20,20,40,.95);
+    border:1px solid rgba(124,77,255,.3);
+    border-radius:16px;padding:24px 32px;
+    text-align:center;
+    box-shadow:0 8px 40px rgba(0,0,0,.5);
+  }
+  #reset-confirm .dialog h3{
+    font-size:1.1rem;font-weight:700;margin-bottom:6px;color:#fff;
+  }
+  #reset-confirm .dialog p{
+    font-size:.8rem;color:rgba(255,255,255,.5);margin-bottom:20px;
+  }
+  #reset-confirm .dialog-btns{
+    display:flex;gap:12px;justify-content:center;
+  }
+  #reset-confirm .dialog-btns button{
+    padding:10px 28px;font-size:.85rem;font-weight:700;
+    border:none;border-radius:10px;cursor:pointer;
+    letter-spacing:.06em;transition:transform .12s;
+  }
+  #reset-confirm .dialog-btns button:active{transform:scale(.94)}
+  .dialog-cancel{
+    background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);
+    border:1px solid rgba(255,255,255,.12) !important;
+  }
+  .dialog-ok{
+    background:linear-gradient(135deg,#ff4081,#ff1744);color:#fff;
+    box-shadow:0 4px 16px rgba(255,64,129,.3);
+  }
 </style>
 </head>
 <body>
@@ -212,6 +390,10 @@
       <div class="info-box"><span class="label">Lines</span><span class="value" id="lines-val">0</span></div>
     </div>
     <div class="info-box"><span class="label">Score</span><span class="value" id="score-val">0</span></div>
+    <button id="btn-reset" aria-label="リセット">
+      <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0012 4C7.58 4 4.01 7.58 4.01 12S7.58 20 12 20c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      RESET
+    </button>
   </div>
 
   <div id="main-area">
@@ -222,15 +404,41 @@
     </div>
   </div>
 
-  <div id="controls">
-    <button class="ctrl-btn" id="btn-left" aria-label="左移動">⬅️<span class="btn-label">LEFT</span></button>
-    <button class="ctrl-btn" id="btn-rotate" aria-label="回転">🔄<span class="btn-label">ROTATE</span></button>
-    <button class="ctrl-btn" id="btn-drop" aria-label="ハードドロップ">⏬<span class="btn-label">DROP</span></button>
-    <button class="ctrl-btn" id="btn-right" aria-label="右移動">➡️<span class="btn-label">RIGHT</span></button>
-  </div>
-  <div id="controls-extra">
-    <button class="ctrl-btn" id="btn-down" aria-label="ソフトドロップ">⬇️ Soft</button>
-    <button class="ctrl-btn" id="btn-hold" aria-label="ホールド">📦 Hold</button>
+  <!-- ファミコン風コントローラー -->
+  <div id="controller">
+    <!-- 十字キー -->
+    <div class="dpad-container">
+      <div class="dpad-center"></div>
+      <button class="dpad-btn dpad-up" id="btn-up" aria-label="ハードドロップ">
+        <svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg>
+      </button>
+      <button class="dpad-btn dpad-down" id="btn-down" aria-label="ソフトドロップ">
+        <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+      </button>
+      <button class="dpad-btn dpad-left" id="btn-left" aria-label="左移動">
+        <svg viewBox="0 0 24 24"><path d="M14 7l-5 5 5 5z"/></svg>
+      </button>
+      <button class="dpad-btn dpad-right" id="btn-right" aria-label="右移動">
+        <svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5z"/></svg>
+      </button>
+    </div>
+
+    <!-- 中央ボタン (HOLD) -->
+    <div class="center-btns">
+      <button class="nes-small-btn" id="btn-hold" aria-label="ホールド">HOLD</button>
+    </div>
+
+    <!-- A/B ボタン -->
+    <div class="ab-container">
+      <button class="ab-btn btn-a" id="btn-rotate" aria-label="回転">
+        A
+        <span class="ab-sub">ROTATE</span>
+      </button>
+      <button class="ab-btn btn-b" id="btn-drop" aria-label="ハードドロップ">
+        B
+        <span class="ab-sub">DROP</span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -242,13 +450,33 @@
 
 <div id="start-overlay">
   <h1>TETRIS</h1>
-  <p>ネオンテトリス — タップ＆スワイプで操作</p>
+  <p>ネオンテトリス — ファミコン風コントローラーで操作</p>
   <button id="start-btn">START</button>
+</div>
+
+<!-- リセット確認ダイアログ -->
+<div id="reset-confirm" class="hidden">
+  <div class="dialog">
+    <h3>リセットしますか？</h3>
+    <p>現在のゲームがリセットされます</p>
+    <div class="dialog-btns">
+      <button class="dialog-cancel" id="reset-cancel">キャンセル</button>
+      <button class="dialog-ok" id="reset-ok">リセット</button>
+    </div>
+  </div>
 </div>
 
 <script>
 (function(){
 "use strict";
+
+/* ===== フルスクリーン対応 ===== */
+function enterFullscreen(){
+  const el=document.documentElement;
+  if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+  else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  else if(el.msRequestFullscreen) el.msRequestFullscreen();
+}
 
 /* ===== Constants ===== */
 const COLS=10,ROWS=20,BLOCK=0; // BLOCK calculated later
@@ -277,18 +505,17 @@ let BS; // block size (pixels)
 function resize(){
   const wrapper=document.getElementById('game-wrapper');
   const header=document.getElementById('header');
-  const controls=document.getElementById('controls');
-  const controlsExtra=document.getElementById('controls-extra');
+  const controller=document.getElementById('controller');
   const hh=header.offsetHeight;
-  const ch=controls.offsetHeight+controlsExtra.offsetHeight+24;
-  const availH=wrapper.offsetHeight-hh-ch-20;
-  const availW=wrapper.offsetWidth-100; // side panel ~90px
+  const ch=controller.offsetHeight+16;
+  const availH=wrapper.offsetHeight-hh-ch-16;
+  const availW=wrapper.offsetWidth-90; // side panel ~80px
   const bsH=Math.floor(availH/ROWS);
   const bsW=Math.floor(availW/COLS);
   BS=Math.max(12,Math.min(bsH,bsW,28));
   canvas.width=COLS*BS;canvas.height=ROWS*BS;
   canvas.style.width=canvas.width+'px';canvas.style.height=canvas.height+'px';
-  const sideBS=Math.max(10,Math.floor(BS*.65));
+  const sideBS=Math.max(10,Math.floor(BS*.6));
   nextCanvas.width=4*sideBS;nextCanvas.height=4*sideBS;
   nextCanvas.style.width=nextCanvas.width+'px';nextCanvas.style.height=nextCanvas.height+'px';
   holdCanvas.width=4*sideBS;holdCanvas.height=4*sideBS;
@@ -524,7 +751,7 @@ function loop(time){
   if(!gameOver)requestAnimationFrame(loop);
 }
 
-/* ===== Controls — Touch buttons ===== */
+/* ===== Controls — Touch buttons (D-Pad + AB) ===== */
 function addBtn(id,fn){
   const el=document.getElementById(id);
   let interval=null,timeout=null;
@@ -551,6 +778,7 @@ function addSingleBtn(id,fn){
 addSingleBtn('btn-rotate',()=>rotate());
 addSingleBtn('btn-drop',()=>hardDrop());
 addSingleBtn('btn-hold',()=>holdSwap());
+addSingleBtn('btn-up',()=>hardDrop());
 
 /* ===== Controls — Keyboard ===== */
 document.addEventListener('keydown',(e)=>{
@@ -592,9 +820,29 @@ canvas.addEventListener('touchend',(e)=>{
 /* ===== Prevent scroll / zoom ===== */
 document.addEventListener('touchmove',(e)=>{e.preventDefault()},{passive:false});
 
+/* ===== Reset機能 ===== */
+const resetConfirm=document.getElementById('reset-confirm');
+document.getElementById('btn-reset').addEventListener('click',()=>{
+  paused=true;
+  resetConfirm.classList.remove('hidden');
+});
+document.getElementById('reset-cancel').addEventListener('click',()=>{
+  resetConfirm.classList.add('hidden');
+  paused=false;
+  if(!gameOver)requestAnimationFrame(loop);
+});
+document.getElementById('reset-ok').addEventListener('click',()=>{
+  resetConfirm.classList.add('hidden');
+  hideOverlay();
+  initState();resize();
+  lastTime=performance.now();
+  requestAnimationFrame(loop);
+});
+
 /* ===== Start & Retry ===== */
 document.getElementById('start-btn').addEventListener('click',()=>{
   document.getElementById('start-overlay').classList.add('hidden');
+  enterFullscreen();
   initState();resize();lastTime=performance.now();requestAnimationFrame(loop);
 });
 document.getElementById('retry-btn').addEventListener('click',()=>{
