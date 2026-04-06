@@ -626,18 +626,16 @@ function lockPiece(){
   spawnPiece();
 }
 
-let clearAnim=[];
 function clearLines(){
   const full=[];
   for(let r=0;r<ROWS;r++){if(board[r].every(c=>c))full.push(r)}
   if(full.length===0)return;
-  // flash effect
-  full.forEach(r=>{for(let c=0;c<COLS;c++)board[r][c]={color:'#fff',glow:'rgba(255,255,255,.9)'}});
-  setTimeout(()=>{
-    full.sort((a,b)=>a-b);
-    for(let i=full.length-1;i>=0;i--){board.splice(full[i],1);board.unshift(Array(COLS).fill(null))}
-    draw();
-  },120);
+  // 即座にラインを消去（白フラッシュバグ回避）
+  full.sort((a,b)=>a-b);
+  for(let i=full.length-1;i>=0;i--){
+    board.splice(full[i],1);
+    board.unshift(Array(COLS).fill(null));
+  }
   const cleared=full.length;
   lines+=cleared;
   score+=LINE_SCORES[cleared]*level;
@@ -658,17 +656,27 @@ function draw(){
   // Board
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){if(board[r][c])drawBlock(ctx,c,r,board[r][c].color,board[r][c].glow,BS)}
 
-  // Ghost
+  // Ghost (落下予測表示)
   if(current&&!gameOver){
     let gy=current.y;
     while(!collides(current.shape,current.x,gy+1))gy++;
     if(gy!==current.y){
       const s=current.shape;
-      ctx.globalAlpha=.18;
       for(let r=0;r<s.length;r++)for(let c=0;c<s[r].length;c++){
-        if(s[r][c])drawBlock(ctx,current.x+c,gy+r,current.color,current.glow,BS);
+        if(s[r][c]){
+          const px=(current.x+c)*BS,py=(gy+r)*BS;
+          ctx.globalAlpha=.3;
+          ctx.fillStyle=current.color;
+          ctx.fillRect(px+1,py+1,BS-2,BS-2);
+          ctx.globalAlpha=.5;
+          ctx.strokeStyle=current.color;
+          ctx.lineWidth=1.5;
+          ctx.setLineDash([3,3]);
+          ctx.strokeRect(px+1,py+1,BS-2,BS-2);
+          ctx.setLineDash([]);
+          ctx.globalAlpha=1;
+        }
       }
-      ctx.globalAlpha=1;
     }
     // Current piece
     const sh=current.shape;
@@ -852,6 +860,31 @@ document.getElementById('retry-btn').addEventListener('click',()=>{
 /* ===== Resize ===== */
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',()=>setTimeout(resize,200));
+
+/* ===== ブラウザUI非表示対応 ===== */
+// iOS Safari アドレスバーを隠すスクロールトリック
+function hideAddressBar(){
+  if(!window.navigator.standalone){
+    document.body.style.minHeight='101vh';
+    window.scrollTo(0,1);
+    setTimeout(()=>{
+      document.body.style.minHeight='100vh';
+      document.body.style.minHeight='100dvh';
+      resize();
+    },300);
+  }
+}
+window.addEventListener('load',hideAddressBar);
+
+// 任意のタッチでフルスクリーン再試行
+let fsRequested=false;
+document.addEventListener('touchstart',()=>{
+  if(!fsRequested){
+    fsRequested=true;
+    enterFullscreen();
+    setTimeout(()=>{fsRequested=false},3000);
+  }
+},{passive:true,once:false});
 
 // Initial sizing (behind start screen)
 setTimeout(()=>{
