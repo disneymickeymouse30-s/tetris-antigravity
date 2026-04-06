@@ -49,10 +49,11 @@
   }
 
   #game-wrapper{
-    position:relative;z-index:1;
+    position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1;
     display:flex;flex-direction:column;align-items:center;
-    width:100%;max-width:420px;height:100vh;height:100dvh;
-    padding:4px 8px 0;
+    width:100%;max-width:420px;height:100%;height:100dvh;
+    padding:4px 8px env(safe-area-inset-bottom,8px);
+    overflow:hidden;
   }
 
   /* --- Header info --- */
@@ -862,33 +863,22 @@ window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',()=>setTimeout(resize,200));
 
 /* ===== ブラウザUI非表示対応 ===== */
-// iOS Safari アドレスバーを隠すスクロールトリック
-function hideAddressBar(){
-  if(!window.navigator.standalone){
-    document.body.style.minHeight='101vh';
-    window.scrollTo(0,1);
-    setTimeout(()=>{
-      document.body.style.minHeight='100vh';
-      document.body.style.minHeight='100dvh';
-      resize();
-    },300);
-  }
+// window.innerHeight を使い実際の表示領域に合わせる
+function updateHeight(){
+  const wrapper=document.getElementById('game-wrapper');
+  wrapper.style.height=window.innerHeight+'px';
+  resize();
 }
-window.addEventListener('load',hideAddressBar);
-
-// 任意のタッチでフルスクリーン再試行
-let fsRequested=false;
-document.addEventListener('touchstart',()=>{
-  if(!fsRequested){
-    fsRequested=true;
-    enterFullscreen();
-    setTimeout(()=>{fsRequested=false},3000);
-  }
-},{passive:true,once:false});
+window.addEventListener('load',()=>{
+  updateHeight();
+  // アドレスバーの表示/非表示でinnerHeightが変わるので追従
+  window.addEventListener('resize',updateHeight);
+});
 
 // Initial sizing (behind start screen)
 setTimeout(()=>{
-  initState();resize();
+  initState();
+  updateHeight();
 },50);
 
 })();
