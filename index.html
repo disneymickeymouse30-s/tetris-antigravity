@@ -80,28 +80,30 @@
   .info-box .label{font-size:.5rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(200,210,255,.5)}
   .info-box .value{font-size:.85rem;font-weight:700;color:#fff;text-shadow:0 0 8px rgba(0,229,255,.5)}
 
-  /* --- Reset button --- */
-  #btn-reset{
+  /* --- Action buttons --- */
+  .action-btn{
     display:flex;align-items:center;justify-content:center;
     gap:4px;
-    background:rgba(255,60,60,.12);
-    border:1px solid rgba(255,80,80,.3);
-    border-radius:8px;padding:4px 10px;
-    color:rgba(255,120,120,.9);
+    border-radius:8px;padding:4px 8px;
     font-size:.65rem;font-weight:600;letter-spacing:.08em;
     cursor:pointer;
     transition:all .15s;
     -webkit-tap-highlight-color:transparent;
     backdrop-filter:blur(6px);
   }
-  #btn-reset:active{
-    background:rgba(255,60,60,.3);
-    transform:scale(.92);
+  .action-btn:active{transform:scale(.92)}
+  .action-btn svg{width:14px;height:14px;fill:currentColor}
+
+  #btn-reset{
+    background:rgba(255,60,60,.12);border:1px solid rgba(255,80,80,.3);color:rgba(255,120,120,.9);
   }
-  #btn-reset svg{
-    width:14px;height:14px;
-    fill:currentColor;
+  #btn-reset:active{background:rgba(255,60,60,.3)}
+
+  #btn-pause{
+    background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);color:rgba(0,229,255,.9);
   }
+  #btn-pause:active{background:rgba(0,229,255,.3)}
+  #btn-pause.active-pause{background:rgba(0,229,255,.4);border-color:rgba(0,229,255,.6);color:#fff;}
 
   /* --- Main area: canvas + next --- */
   #main-area{
@@ -341,6 +343,22 @@
   /* Level/Lines in header */
   #level-display{display:flex;gap:4px}
 
+  /* ポーズ画面 */
+  #pause-overlay{
+    position:fixed;inset:0;z-index:105;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(2,2,10,.8);
+    backdrop-filter:blur(6px);
+    transition:opacity .2s;
+  }
+  #pause-overlay.hidden{opacity:0;pointer-events:none}
+  #pause-overlay h2{
+    font-size:2.5rem;font-weight:800;letter-spacing:.2em;
+    background:linear-gradient(135deg,#00e5ff,#7c4dff);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    filter:drop-shadow(0 0 10px rgba(0,229,255,.4));
+  }
+
   /* リセット確認ダイアログ */
   #reset-confirm{
     position:fixed;inset:0;z-index:120;
@@ -380,6 +398,36 @@
     background:linear-gradient(135deg,#ff4081,#ff1744);color:#fff;
     box-shadow:0 4px 16px rgba(255,64,129,.3);
   }
+
+  /* TETRIS エフェクト */
+  #tetris-action {
+    position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0.5);
+    z-index: 200; pointer-events: none; opacity: 0;
+    font-size: 3.5rem; font-weight: 900; font-style: italic; letter-spacing: 0.1em;
+    background: linear-gradient(135deg, #ffea00, #ff4081, #d500f9);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    filter: drop-shadow(0 0 15px rgba(255, 64, 129, 0.8));
+  }
+  #tetris-action.animate {
+    animation: tetris-pop 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+  @keyframes tetris-pop {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+    15% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; filter: drop-shadow(0 0 30px rgba(255, 234, 0, 1)); }
+    30% { transform: translate(-50%, -50%) scale(1.0); opacity: 1; filter: drop-shadow(0 0 20px rgba(213, 0, 249, 0.9)); }
+    70% { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
+    100% { transform: translate(-50%, -60%) scale(1.1); opacity: 0; }
+  }
+  /* キャンバスシェイク */
+  @keyframes shake-canvas {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-4px, -4px) rotate(-1deg); }
+    30% { transform: translate(4px, 4px) rotate(1deg); }
+    50% { transform: translate(-4px, 4px) rotate(-1deg); }
+    70% { transform: translate(4px, -4px) rotate(1deg); }
+    90% { transform: translate(-2px, 2px) rotate(0); }
+  }
+  .shake { animation: shake-canvas 0.4s ease-in-out; }
 </style>
 </head>
 <body>
@@ -391,10 +439,16 @@
       <div class="info-box"><span class="label">Lines</span><span class="value" id="lines-val">0</span></div>
     </div>
     <div class="info-box"><span class="label">Score</span><span class="value" id="score-val">0</span></div>
-    <button id="btn-reset" aria-label="リセット">
-      <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0012 4C7.58 4 4.01 7.58 4.01 12S7.58 20 12 20c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-      RESET
-    </button>
+    <div style="display:flex; gap:6px;">
+      <button id="btn-pause" class="action-btn" aria-label="ポーズ">
+        <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        PAUSE
+      </button>
+      <button id="btn-reset" class="action-btn" aria-label="リセット">
+        <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0012 4C7.58 4 4.01 7.58 4.01 12S7.58 20 12 20c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+        RESET
+      </button>
+    </div>
   </div>
 
   <div id="main-area">
@@ -443,6 +497,8 @@
   </div>
 </div>
 
+<div id="tetris-action">TETRIS!</div>
+
 <div id="overlay" class="hidden">
   <h2>GAME OVER</h2>
   <p class="final-score" id="final-score">Score: 0</p>
@@ -453,6 +509,11 @@
   <h1>TETRIS</h1>
   <p>ネオンテトリス — ファミコン風コントローラーで操作</p>
   <button id="start-btn">START</button>
+</div>
+
+<div id="pause-overlay" class="hidden" style="cursor:pointer;">
+  <h2>PAUSE</h2>
+  <p style="color:rgba(255,255,255,.6); margin-top:20px; font-size:0.9rem; letter-spacing:0.1em; pointer-events:none;">▶ 画面タップで再開 ◀</p>
 </div>
 
 <!-- リセット確認ダイアログ -->
@@ -470,6 +531,97 @@
 <script>
 (function(){
 "use strict";
+
+/* ===== BGM (Web Audio API) ===== */
+class TetrisBGM {
+  constructor() {
+    this.ctx = null;
+    this.isPlaying = false;
+    this.timerID = null;
+    this.tempo = 140; // BPM
+    // Korobeiniki (A minor)
+    this.melody = [
+      {f:659.25, d:1}, {f:493.88, d:0.5}, {f:523.25, d:0.5}, {f:587.33, d:1},
+      {f:523.25, d:0.5}, {f:493.88, d:0.5}, {f:440.00, d:1}, {f:440.00, d:0.5},
+      {f:523.25, d:0.5}, {f:659.25, d:1}, {f:587.33, d:0.5}, {f:523.25, d:0.5},
+      {f:493.88, d:1.5}, {f:523.25, d:0.5}, {f:587.33, d:1}, {f:659.25, d:1},
+      {f:523.25, d:1}, {f:440.00, d:1}, {f:440.00, d:1}, {f:0, d:1}
+    ];
+    this.noteIdx = 0;
+    this.nextNoteTime = 0;
+  }
+  init() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.value = 0.05;
+      this.masterGain.connect(this.ctx.destination);
+    }
+    if(this.ctx.state === 'suspended') this.ctx.resume();
+  }
+  play() {
+    if (this.isPlaying) return;
+    this.init();
+    this.isPlaying = true;
+    this.noteIdx = 0;
+    this.nextNoteTime = this.ctx.currentTime + 0.1;
+    this.schedule();
+  }
+  schedule() {
+    if (!this.isPlaying) return;
+    const lookahead = 0.1;
+    while (this.nextNoteTime < this.ctx.currentTime + lookahead) {
+      this.playNote(this.melody[this.noteIdx].f, this.nextNoteTime, this.melody[this.noteIdx].d);
+      this.nextNoteTime += (60.0 / this.tempo) * this.melody[this.noteIdx].d;
+      this.noteIdx = (this.noteIdx + 1) % this.melody.length;
+    }
+    this.timerID = setTimeout(() => this.schedule(), 25);
+  }
+  playNote(f, t, d) {
+    if (f === 0) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = f;
+    const dur = (60.0 / this.tempo) * d;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(1, t + 0.05);
+    gain.gain.setValueAtTime(1, t + dur - 0.05);
+    gain.gain.linearRampToValueAtTime(0, t + dur);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + dur);
+  }
+  playTetrisSE() {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t = this.ctx.currentTime;
+    const freqs = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
+    freqs.forEach((f, i) => {
+      this.playNote(f, t + i * 0.05, 0.1);
+    });
+    this.playNote(1046.50, t + 0.3, 0.8);
+    this.playNote(1318.51, t + 0.3, 0.8);
+    this.playNote(1567.98, t + 0.3, 0.8);
+  }
+  pause() {
+    this.isPlaying = false;
+    clearTimeout(this.timerID);
+    if(this.ctx && this.ctx.state === 'running') this.ctx.suspend();
+  }
+  resume() {
+    if (this.isPlaying) return;
+    this.init();
+    this.isPlaying = true;
+    this.nextNoteTime = this.ctx.currentTime + 0.1;
+    this.schedule();
+  }
+  stop() {
+    this.isPlaying = false;
+    clearTimeout(this.timerID);
+  }
+}
+const bgm = new TetrisBGM();
 
 /* ===== フルスクリーン対応 ===== */
 function enterFullscreen(){
@@ -567,15 +719,15 @@ function collides(shape,px,py){
 }
 
 /* ===== Move / Rotate ===== */
-function moveLeft(){if(!current||gameOver)return;if(!collides(current.shape,current.x-1,current.y)){current.x--;resetLock()}}
-function moveRight(){if(!current||gameOver)return;if(!collides(current.shape,current.x+1,current.y)){current.x++;resetLock()}}
+function moveLeft(){if(!current||gameOver||paused)return;if(!collides(current.shape,current.x-1,current.y)){current.x--;resetLock()}}
+function moveRight(){if(!current||gameOver||paused)return;if(!collides(current.shape,current.x+1,current.y)){current.x++;resetLock()}}
 function moveDown(){
-  if(!current||gameOver)return false;
+  if(!current||gameOver||paused)return false;
   if(!collides(current.shape,current.x,current.y+1)){current.y++;dropTimer=0;return true}
   return false;
 }
 function hardDrop(){
-  if(!current||gameOver)return;
+  if(!current||gameOver||paused)return;
   let d=0;while(!collides(current.shape,current.x,current.y+1)){current.y++;d++}
   score+=d*2;
   lockPiece();
@@ -583,7 +735,7 @@ function hardDrop(){
 function softDrop(){if(moveDown())score+=1}
 
 function rotate(){
-  if(!current||gameOver)return;
+  if(!current||gameOver||paused)return;
   const rotated=rotateMatrix(current.shape);
   // Wall kick offsets
   const kicks=[0,-1,1,-2,2];
@@ -600,7 +752,7 @@ function rotateMatrix(m){
 }
 
 function holdSwap(){
-  if(!current||gameOver||holdUsed)return;
+  if(!current||gameOver||holdUsed||paused)return;
   holdUsed=true;
   const name=current.name;
   if(holdPiece){
@@ -638,10 +790,23 @@ function clearLines(){
     board.unshift(Array(COLS).fill(null));
   }
   const cleared=full.length;
+  
+  if(cleared === 4) {
+    bgm.playTetrisSE();
+    const actionEl = document.getElementById('tetris-action');
+    actionEl.classList.remove('animate');
+    void actionEl.offsetWidth; // trigger reflow
+    actionEl.classList.add('animate');
+    canvas.classList.remove('shake');
+    void canvas.offsetWidth;
+    canvas.classList.add('shake');
+  }
+
   lines+=cleared;
   score+=LINE_SCORES[cleared]*level;
   level=Math.floor(lines/10)+1;
-  dropInterval=Math.max(80,1000-((level-1)*80));
+  // レベルごとに15%ずつスピードアップし、最低50msまで（少しずつ確実に早くなる）
+  dropInterval=Math.max(50, 1000 * Math.pow(0.85, level-1));
   updateUI();
 }
 
@@ -729,6 +894,7 @@ function updateUI(){
 
 /* ===== Overlay ===== */
 function showOverlay(){
+  bgm.stop();
   const o=document.getElementById('overlay');o.classList.remove('hidden');
   document.getElementById('final-score').textContent='Score: '+score.toLocaleString();
 }
@@ -829,22 +995,54 @@ canvas.addEventListener('touchend',(e)=>{
 /* ===== Prevent scroll / zoom ===== */
 document.addEventListener('touchmove',(e)=>{e.preventDefault()},{passive:false});
 
-/* ===== Reset機能 ===== */
+/* ===== Pause & Reset ===== */
+const pauseBtn = document.getElementById('btn-pause');
+const pauseOverlay = document.getElementById('pause-overlay');
+
+function togglePause() {
+  if (gameOver || !document.getElementById('start-overlay').classList.contains('hidden') || !document.getElementById('reset-confirm').classList.contains('hidden')) return;
+  paused = !paused;
+  if(paused) {
+    pauseBtn.classList.add('active-pause');
+    pauseOverlay.classList.remove('hidden');
+    bgm.pause();
+  } else {
+    pauseBtn.classList.remove('active-pause');
+    pauseOverlay.classList.add('hidden');
+    bgm.resume();
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+}
+
+pauseBtn.addEventListener('click', togglePause);
+pauseOverlay.addEventListener('click', togglePause);
+
 const resetConfirm=document.getElementById('reset-confirm');
 document.getElementById('btn-reset').addEventListener('click',()=>{
   paused=true;
+  bgm.pause();
   resetConfirm.classList.remove('hidden');
 });
 document.getElementById('reset-cancel').addEventListener('click',()=>{
   resetConfirm.classList.add('hidden');
-  paused=false;
-  if(!gameOver)requestAnimationFrame(loop);
+  if(!gameOver && !pauseBtn.classList.contains('active-pause')){
+    paused=false;
+    bgm.resume();
+    lastTime=performance.now();
+    requestAnimationFrame(loop);
+  }
 });
 document.getElementById('reset-ok').addEventListener('click',()=>{
   resetConfirm.classList.add('hidden');
   hideOverlay();
+  if(pauseBtn.classList.contains('active-pause')) {
+    pauseBtn.classList.remove('active-pause');
+    pauseOverlay.classList.add('hidden');
+  }
   initState();resize();
   lastTime=performance.now();
+  bgm.play();
   requestAnimationFrame(loop);
 });
 
@@ -852,10 +1050,19 @@ document.getElementById('reset-ok').addEventListener('click',()=>{
 document.getElementById('start-btn').addEventListener('click',()=>{
   document.getElementById('start-overlay').classList.add('hidden');
   enterFullscreen();
-  initState();resize();lastTime=performance.now();requestAnimationFrame(loop);
+  initState();resize();lastTime=performance.now();
+  bgm.play();
+  requestAnimationFrame(loop);
 });
 document.getElementById('retry-btn').addEventListener('click',()=>{
-  hideOverlay();initState();resize();lastTime=performance.now();requestAnimationFrame(loop);
+  hideOverlay();
+  if(pauseBtn.classList.contains('active-pause')) {
+    pauseBtn.classList.remove('active-pause');
+    pauseOverlay.classList.add('hidden');
+  }
+  initState();resize();lastTime=performance.now();
+  bgm.play();
+  requestAnimationFrame(loop);
 });
 
 /* ===== Resize ===== */
