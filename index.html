@@ -13,7 +13,7 @@
 <meta name="msapplication-navbutton-color" content="#060612">
 <meta name="apple-mobile-web-app-title" content="TETRIS">
 <!-- フルスクリーンAPI用 -->
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="data:application/manifest+json,{&quot;name&quot;:&quot;TETRIS&quot;,&quot;short_name&quot;:&quot;TETRIS&quot;,&quot;display&quot;:&quot;fullscreen&quot;,&quot;background_color&quot;:&quot;%23060612&quot;,&quot;theme_color&quot;:&quot;%23060612&quot;,&quot;start_url&quot;:&quot;.&quot;}">
 <style>
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
   html,body{
@@ -508,6 +508,7 @@
 
 <div id="start-overlay">
   <h1>TETRIS</h1>
+  <p>タップ: 回転 ／ スワイプ: 移動・落下<br>スマホ・PC両対応</p>
   <button id="start-btn">START</button>
 </div>
 
@@ -632,7 +633,7 @@ function enterFullscreen(){
 }
 
 /* ===== Constants ===== */
-const COLS=10,ROWS=20,BLOCK=0; // BLOCK calculated later
+const COLS=10,ROWS=20;
 const SHAPES={
   I:{shape:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],color:'#00e5ff',glow:'rgba(0,229,255,.55)'},
   J:{shape:[[1,0,0],[1,1,1],[0,0,0]],color:'#2979ff',glow:'rgba(41,121,255,.55)'},
@@ -699,7 +700,7 @@ function randomPiece(){
   return{name,shape:s.shape.map(r=>[...r]),color:s.color,glow:s.glow,x:0,y:0};
 }
 
-function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.random()*i+1|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 
 function spawnPiece(){
   current=next;next=randomPiece();
@@ -747,8 +748,9 @@ function rotate(){
 }
 
 function rotateMatrix(m){
-  const n=m.length;const r=[];
-  for(let i=0;i<n;i++){r[i]=[];for(let j=0;j<n;j++)r[i][j]=m[n-1-j][i]}
+  const rows=m.length,cols=m[0].length;
+  const r=[];
+  for(let i=0;i<cols;i++){r[i]=[];for(let j=0;j<rows;j++)r[i][j]=m[rows-1-j][i]}
   return r;
 }
 
@@ -758,13 +760,17 @@ function holdSwap(){
   const name=current.name;
   if(holdPiece){
     const s=SHAPES[holdPiece];
+    // Assign new current before nulling, so current is never null
     current={name:holdPiece,shape:s.shape.map(r=>[...r]),color:s.color,glow:s.glow,
       x:Math.floor((COLS-s.shape[0].length)/2),y:0};
+    holdPiece=name;
   }else{
-    current=null;
+    holdPiece=name;
+    current=null; // will be replaced by spawnPiece immediately below
+    spawnPiece();
+    return;
   }
   holdPiece=name;
-  if(!current)spawnPiece();
 }
 
 /* ===== Lock & Clear ===== */
@@ -909,7 +915,6 @@ function loop(time){
   const dt=time-lastTime;lastTime=time;
   if(paused){requestAnimationFrame(loop);return}
 
-  locked=false;
   dropTimer+=dt;
   if(dropTimer>=dropInterval){
     if(!moveDown()){
@@ -922,12 +927,15 @@ function loop(time){
   if(!locked && current&&collides(current.shape,current.x,current.y+1)){
     lockTimer+=dt;
     if(lockTimer>=lockDelay){
+      locked=true;  // セット後にlockPieceを呼ぶ（二重呼び出し防止）
       lockPiece();
-      locked=true;
     }
   }else if(!locked){
     lockTimer=0;
   }
+
+  // フレーム末尾でリセット（次フレーム冒頭ではなくここで）
+  locked=false;
 
   draw();
   if(!gameOver)requestAnimationFrame(loop);
