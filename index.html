@@ -421,14 +421,14 @@
     70% { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
     100% { transform: translate(-50%, -60%) scale(1.1); opacity: 0; }
   }
-  /* キャンバスシェイク */
+  /* キャンバスシェイク → ラッパーごと揺らす（描画座標系を壊さない） */
   @keyframes shake-canvas {
-    0%, 100% { transform: translate(0, 0); }
-    10% { transform: translate(-4px, -4px) rotate(-1deg); }
-    30% { transform: translate(4px, 4px) rotate(1deg); }
-    50% { transform: translate(-4px, 4px) rotate(-1deg); }
-    70% { transform: translate(4px, -4px) rotate(1deg); }
-    90% { transform: translate(-2px, 2px) rotate(0); }
+    0%, 100% { transform: translateX(-50%) translate(0, 0); }
+    10% { transform: translateX(-50%) translate(-4px, -4px) rotate(-1deg); }
+    30% { transform: translateX(-50%) translate(4px, 4px) rotate(1deg); }
+    50% { transform: translateX(-50%) translate(-4px, 4px) rotate(-1deg); }
+    70% { transform: translateX(-50%) translate(4px, -4px) rotate(1deg); }
+    90% { transform: translateX(-50%) translate(-2px, 2px) rotate(0); }
   }
   .shake { animation: shake-canvas 0.4s ease-in-out; }
 </style>
@@ -786,34 +786,45 @@ function lockPiece(){
   spawnPiece();
 }
 
+/* clearingRows: フラッシュ描画用（draw()が参照） */
+let clearingRows=[];
+
 function clearLines(){
   const full=[];
   for(let r=0;r<ROWS;r++){if(board[r].every(c=>c))full.push(r)}
   if(full.length===0)return;
-  // 即座にラインを消去（白フラッシュバグ回避）
-  full.sort((a,b)=>a-b);
-  for(let i=full.length-1;i>=0;i--){
-    board.splice(full[i],1);
+
+  const cleared=full.length;
+
+  // ① 消えるラインをフラッシュ色でマークして即描画（視覚上「光って消える」）
+  clearingRows=full.slice();
+  draw();
+
+  // ② board から即座に削除（下→上の順でインデックスずれを防ぐ）
+  full.sort((a,b)=>b-a);
+  for(const r of full){
+    board.splice(r,1);
     board.unshift(Array(COLS).fill(null));
   }
-  const cleared=full.length;
-  
-  if(cleared === 4) {
+  clearingRows=[];
+
+  if(cleared===4){
     bgm.playTetrisSE();
-    const actionEl = document.getElementById('tetris-action');
+    const actionEl=document.getElementById('tetris-action');
     actionEl.classList.remove('animate');
-    void actionEl.offsetWidth; // trigger reflow
+    void actionEl.offsetWidth;
     actionEl.classList.add('animate');
-    canvas.classList.remove('shake');
-    void canvas.offsetWidth;
-    canvas.classList.add('shake');
+    // シェイクはキャンバスではなくラッパーに適用（描画座標系を壊さない）
+    const wrapper=document.getElementById('game-wrapper');
+    wrapper.classList.remove('shake');
+    void wrapper.offsetWidth;
+    wrapper.classList.add('shake');
   }
 
   lines+=cleared;
   score+=LINE_SCORES[cleared]*level;
   level=Math.floor(lines/10)+1;
-  // レベルごとに15%ずつスピードアップし、最低50msまで（少しずつ確実に早くなる）
-  dropInterval=Math.max(50, 1000 * Math.pow(0.85, level-1));
+  dropInterval=Math.max(50,1000*Math.pow(0.85,level-1));
   updateUI();
 }
 
@@ -826,8 +837,18 @@ function draw(){
   for(let r=0;r<=ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*BS);ctx.lineTo(COLS*BS,r*BS);ctx.stroke()}
   for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(c*BS,0);ctx.lineTo(c*BS,ROWS*BS);ctx.stroke()}
 
-  // Board
-  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){if(board[r][c])drawBlock(ctx,c,r,board[r][c].color,board[r][c].glow,BS)}
+  // Board（clearingRows は白フラッシュで描画）
+  for(let r=0;r<ROWS;r++){
+    if(clearingRows.includes(r)){
+      // 消去ラインを白くフラッシュ
+      ctx.fillStyle='rgba(255,255,255,0.92)';
+      ctx.shadowColor='#fff';ctx.shadowBlur=12;
+      ctx.fillRect(0,r*BS,COLS*BS,BS);
+      ctx.shadowBlur=0;
+    } else {
+      for(let c=0;c<COLS;c++){if(board[r][c])drawBlock(ctx,c,r,board[r][c].color,board[r][c].glow,BS)}
+    }
+  }
 
   // Ghost (落下予測表示)
   if(current&&!gameOver){
